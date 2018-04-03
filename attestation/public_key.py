@@ -18,14 +18,14 @@ class PublicKey(object):
         Returns the significant part of the public key in hex encoding.
         """
 
-        return self.bin_key.encode('hex')
+        return self.bin_key.encode('hex')[53:]
 
     def to_base64(self):
         """
         Returns the significant part of the public key in base64 encoding.
         """
 
-        return self.bin_key.encode('base64')[13:]
+        return self.bin_key.encode('base64')[33:]
 
     def __hash__(self):
         return hash(self.bin_key)
@@ -38,3 +38,4 @@ class PublicKey(object):
 
     def __repr__(self):
         return self.to_base64()[:8]
+

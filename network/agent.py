@@ -113,6 +113,12 @@ class Agent(object):
             if block.public_key == public_key and block.sequence_number == sequence_number:
                 return block
 
+    def calculate_ranking(self):
+        """
+        Calculates a ranking of known agents.
+        """
+        return calculate_tpr(self.public_key, self.blocks)
+
     def calculate_score(self, public_key):
         """
         Calculates a ranking of known agents and returns the score corresponding
@@ -158,3 +164,15 @@ class Agent(object):
         String representation of an agent object.
         """
         return "Agent<@%s>" % self.public_key.to_base64()[:8]
+
+    def to_dict(self):
+        """
+        Python dictionary representation of the agent object.
+        """
+        return {
+            "public_key": self.public_key.to_hex(),
+            "chain_length": len(self.chain),
+            "up": self.chain.up(),
+            "down": self.chain.down(),
+            "blocks": [block.to_dict() for block in self.blocks]
+        }

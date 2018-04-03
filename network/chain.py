@@ -21,6 +21,18 @@ class Chain(object):
         """
         pass
 
+    def up(self):
+        """
+        Returns the total amount of uploaded data.
+        """
+        return sum([t.contribution for t in self.transactions])
+
+    def down(self):
+        """
+        Returns the total amount of downloaded data.
+        """
+        return sum([t.contribution - t.net_contribution for t in self.transactions])
+
     def add(self, transaction):
         """
         Adds a transaction to the chain.

@@ -42,3 +42,17 @@ class Halfblock(object):
     def __lt__(self, other):
         return self.sequence_number < other.sequence_number
 
+    def to_dict(self):
+        """
+        Returns json representation of the halfblock.
+        """
+        return {
+            "contribution": self.contribution,
+            "net_contribution": self.net_contribution,
+            "public_key": self.public_key.to_hex(),
+            "sequence_number": self.sequence_number,
+            "link_public_key": self.link_public_key.to_hex(),
+            "link_sequence_number": self.link_sequence_number,
+            "previous_hash": self.previous_hash.encode('hex'),
+            "signature": self.signature.encode('hex')
+        }

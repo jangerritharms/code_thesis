@@ -8,6 +8,7 @@ from attestation.public_key import PublicKey
 from agent import Agent
 from attestation.halfblock import Halfblock
 from interface import NetworkInterface
+from progress.bar import Bar
 
 class Network(object):
     """
@@ -32,6 +33,7 @@ class Network(object):
         """
         Populate the network with agents from the database.
         """
+        bar = Bar('Creating agents', max=len(self.blocks))
         for block in self.blocks:
             public_key1 = PublicKey(block.public_key_requester)
             public_key2 = PublicKey(block.public_key_responder)
@@ -46,6 +48,8 @@ class Network(object):
             block_req, block_res = Halfblock.from_old_block(block)
             agent_req.add_transaction(block_req)
             agent_res.add_transaction(block_res)
+            bar.next()
+        bar.finish()
 
     @classmethod
     def from_database(cls, db_adapter):

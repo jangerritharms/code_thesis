@@ -1,0 +1,42 @@
+from twisted.web import resource
+
+import json
+
+class PagerankEndpoint(resource.Resource):
+
+    def __init__(self, network):
+        resource.Resource.__init__(self)
+        self.network = network
+
+    def getChild(self, path, request):
+        request.setHeader('Access-Control-Allow-Origin', '*')
+        request.setHeader('Access-Control-Allow-Methods', 'GET')
+        request.setHeader('Access-Control-Allow-Headers', 'x-prototype-version,x-requested-with')
+        request.setHeader('Access-Control-Max-Age', 2520)
+        
+        return PagerankSpecificEndpoint(self.network, path)
+
+    # def render_GET(self, request):
+    #     request.setHeader('Access-Control-Allow-Origin', '*')
+    #     request.setHeader('Access-Control-Allow-Methods', 'GET')
+    #     request.setHeader('Access-Control-Allow-Headers', 'x-prototype-version,x-requested-with')
+    #     request.setHeader('Access-Control-Max-Age', 2520)
+
+    #     agents = self.network.list_agents()
+    #     agents = [a.to_hex()[:8] for a in agents]
+    #     return json.dumps(agents)
+
+class PagerankSpecificEndpoint(resource.Resource):
+
+    def __init__(self, network, path):
+        self.network = network
+        self.agent_query = path
+
+    def render_GET(self, request):
+        agent = self.network.get_agent(self.agent_query)
+        rank = agent.calculate_ranking()
+
+        converted_rank = {}
+        for key, score in rank.iteritems():
+            converted_rank[key.to_hex()[:12]] = score
+        return json.dumps(converted_rank)
