@@ -4,8 +4,8 @@ from attestation.database import MultiChainDB
 
 
 def experiment():
-    db = MultiChainDB('databases/multichain_1000.db')
+    db = MultiChainDB('databases/multichain_09_02_18.db')
     net = Network.from_database(db)
-    agents = net.list_agents()
+    net.clean_data()
+    # agents = net.list_agents()
 
-    net.pairwise_audit(agents.values()[0], agents.values()[1])

@@ -21,6 +21,40 @@ class Chain(object):
         """
         pass
 
+    def get_blocks(self):
+        """
+        Returns the blocks the chain is made of.
+        """
+        return self.transactions
+
+    def get_partner_agents(self):
+        """
+        Calculates the list of all agents that this agent has interacted with.
+        """
+        partners = []
+        for block in self.transactions:
+            if not block.link_public_key in partners:
+                partners.append(block.link_public_key)
+        return partners
+
+    def is_complete(self):
+        """
+        Returns true if the chain is continuous and does not contain partly
+        signed interactions.
+        """
+        j = 0
+        while j < len(self) and self.transactions[j].sequence_number == -1:
+            j = j + 1
+
+        if j == len(self):
+            return False
+
+        for i in range(j, len(self)):
+            if self.transactions[i].sequence_number != i-j:
+                return False
+
+        return True
+
     def up(self):
         """
         Returns the total amount of uploaded data.
@@ -55,7 +89,7 @@ class Chain(object):
         """
         String representation of the chain.
         """
-        return '\n'.join(['@{} {}MB -> @{}'.format(x.public_key.to_base64()[:8],
+        return '\n'.join(['{}: @{} {}MB -> @{}'.format(x.sequence_number, x.public_key.to_base64()[:8],
                                                    x.net_contribution,
                                                    x.link_public_key.to_base64()[:8])
                           for x in self.transactions])

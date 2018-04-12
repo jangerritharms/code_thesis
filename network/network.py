@@ -132,6 +132,15 @@ class Network(object):
 
         requester.initiate_pairwise_auditing(responder.public_key)
 
+    def increase_data_to_hops(self, hops):
+        """
+        Increases the data to a certain amount of hops. Each agent
+        will store at least all data from all agens `hops` hops away.
+        """
+        for a in Bar('Increasing data').iter(self.agents):
+            agent = self.get_agent(a)
+            agent.obtain_data_from_hops(hops)
+
     def add_agent(self, public_key):
         """
         Creates a new agent on the network.
@@ -144,6 +153,26 @@ class Network(object):
         self.agents[public_key] = Agent(self.interface, public_key)
 
         return self.agents[public_key]
+
+    def clean_data(self):
+        """
+        Clean network data such that only complete chains remain.
+        """
+        complete = 0
+        removed_blocks = 0
+        blocks_kept = 0
+        for a in Bar('Cleaning data').iter(self.agents):
+            agent = self.get_agent(a)
+            if agent.chain.is_complete():
+                complete += 1
+                blocks_kept += len(agent.chain)
+            else:
+                removed_blocks += len(agent.chain)
+                print agent.chain
+
+        print complete
+        print "Blocks kept: ", blocks_kept
+        print "Removed blocks: ", removed_blocks
 
     def get_agent(self, public_key):
         """

@@ -65,6 +65,13 @@ class Agent(object):
             reply = Message(MessageTypes.PA_SCORE_REPLY,
                             self.public_key,
                             self.calculate_score(message.sender))
+        if message.type == MessageTypes.CHAIN:
+            reply = Message(MessageTypes.CHAIN_REPLY,
+                            self.public_key,
+                            self.chain)
+            self.interface.send(message.sender, reply)
+        if message.type == MessageTypes.CHAIN_REPLY:
+            self.blocks += message.payload.get_blocks()
 
     def initiate_pairwise_auditing(self, public_key_responder):
         """
@@ -73,6 +80,41 @@ class Agent(object):
         """
         message = Message(MessageTypes.PA_INDEX, self.public_key, self.create_index())
         self.interface.send(public_key_responder, message)
+
+    def request_data(self, public_key):
+        """
+        Requets chain from agent with public_key.
+        """
+        message = Message(MessageTypes.CHAIN, self.public_key)
+        self.interface.send(public_key, message)
+
+    def obtain_data_from_hops(self, hops):
+        """
+        Get the chains of all known agents.
+        """
+        if hops < 2:
+            return
+
+        partners = self.chain.get_partner_agents()
+        for _ in range(1, hops):
+            new_partners = []
+
+            for partner in partners:
+                self.request_data(partner)
+                chain = self.messages[-1].payload
+                new_partners += chain.get_partner_agents()
+
+            partners += new_partners
+
+    def get_known_agents(self):
+        """
+        Returns the list of all known public_keys.
+        """
+        partners = []
+        for block in self.blocks:
+            if not block.link_public_key in partners:
+                partners.append(block.link_public_key)
+        return partners
 
     def create_index(self):
         """
