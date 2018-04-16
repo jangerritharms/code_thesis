@@ -3,6 +3,7 @@ This module defines the BaseExperiment class of which all Experiments are derive
 """
 from network.network import Network
 from attestation.database import MultiChainDB
+from visualization.handler import VisualizationHandler
 
 class BaseExperiment(object):
     """
@@ -15,6 +16,7 @@ class BaseExperiment(object):
         """
         self.database = MultiChainDB(database)
         self.net = Network.from_database(self.database)
+        self.viz = VisualizationHandler(self.net)
         self.result = None
 
     def _preprocessing(self):

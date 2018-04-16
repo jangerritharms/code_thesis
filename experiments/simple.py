@@ -2,10 +2,11 @@ from base_experiment import BaseExperiment
 
 class Experiment(BaseExperiment):
     """
-    Text experiment to test functions.
+    Test experiment to test functions.
     """
     def run(self):
         self.result = self.net.list_agents()
 
     def visualize(self):
-        print self.result
+        net_viz = self.viz.make_network_visualizer(self.net.interaction_graph())
+        net_viz.export('svg', 'network')
