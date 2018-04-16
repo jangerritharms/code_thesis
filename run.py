@@ -1,3 +1,3 @@
-from experiments.simple import experiment
+from experiments.experiment1 import experiment
 
 experiment()

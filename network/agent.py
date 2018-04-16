@@ -4,6 +4,7 @@ This module defines the Agent class.
 from ranking.temporal_page_rank import calculate_tpr
 from chain import Chain
 from messages import Message, MessageTypes
+from endorsement import Endorsement
 
 class Agent(object):
     """
@@ -23,6 +24,8 @@ class Agent(object):
         self.public_key = public_key
         self.interface = network_interface
         self.messages = []
+        self.accounting_policy = lambda *args: -1
+        self.endorsements = []
 
     def subjective_interaction_graph(self):
         """
@@ -38,33 +41,37 @@ class Agent(object):
         self.messages.append(message)
 
         if message.type == MessageTypes.PA_INDEX:
-            print message.payload
+            print "replying index"
             self.interface.send(message.sender, Message(MessageTypes.PA_INDEX_REPLY,
                                                         self.public_key, self.create_index()))
         if message.type == MessageTypes.PA_INDEX_REPLY:
-            print message.payload
+            print "sending blocks"
             reply = Message(MessageTypes.PA_BLOCKS,
                             self.public_key,
                             self.index_difference(self.create_index(), message.payload))
             self.interface.send(message.sender, reply)
         if message.type == MessageTypes.PA_BLOCKS:
+            print "replying blocks"
             reply = Message(MessageTypes.PA_BLOCKS_REPLY,
                             self.public_key,
                             self.index_difference(self.create_index(), self.messages[-2].payload))
-            print message.payload
             self.blocks += message.payload
             self.interface.send(message.sender, reply)
         if message.type == MessageTypes.PA_BLOCKS_REPLY:
-            print message.payload
+            print "sending score"
             self.blocks += message.payload
             reply = Message(MessageTypes.PA_SCORE,
                             self.public_key,
-                            self.calculate_score(message.sender))
+                            True)
             self.interface.send(message.sender, reply)
+            self.endorsements.append(Endorsement([self.public_key, message.sender, True]))
         if message.type == MessageTypes.PA_SCORE:
+            print "replying score"
             reply = Message(MessageTypes.PA_SCORE_REPLY,
                             self.public_key,
-                            self.calculate_score(message.sender))
+                            True)
+            self.endorsements.append(Endorsement([self.public_key, message.sender, True]))
+            self.interface.send(message.sender, reply)
         if message.type == MessageTypes.CHAIN:
             reply = Message(MessageTypes.CHAIN_REPLY,
                             self.public_key,
@@ -78,8 +85,53 @@ class Agent(object):
         Starts a pairwise auditing session with the agent corresponding to
         `public_key_responder`.
         """
+        responder = public_key_responder
+        if responder is None:
+            responder = self.get_next_audit_partner()
+
+        print "Starting audit with %s" % responder.to_hex()[:10]
+
         message = Message(MessageTypes.PA_INDEX, self.public_key, self.create_index())
-        self.interface.send(public_key_responder, message)
+        self.interface.send(responder, message)
+
+    def get_endorsements_by_candidate(self, agent):
+        """
+        Returns a list of endorsements of an agent. If none exist,
+        returns None.
+        """
+
+        result = []
+        for endorsement in self.endorsements:
+            if endorsement.subject == agent:
+                result.append(endorsement)
+
+        if len(result) == 0:
+            return None
+
+        return result
+
+    def get_next_audit_partner(self):
+        """
+        Chooses a random audit partner that is close and has not been audited
+        before.
+        """
+
+        hops = 1
+        partner = None
+        while not partner:
+            hop_partners = self.get_hop_agents(hops)
+
+            for candidate in hop_partners:
+                if self.get_endorsements_by_candidate(candidate) is None:
+                    return candidate
+
+            hops += 1
+
+    def set_accounting_policy(self, func):
+        """
+        Sets the accounting policy.
+        """
+        self.accounting_policy = func
 
     def request_data(self, public_key):
         """
@@ -116,6 +168,39 @@ class Agent(object):
                 partners.append(block.link_public_key)
         return partners
 
+    def get_known_contributions(self, agent):
+        """
+        Calculates the known contributions for a known agent.
+        """
+        agent_blocks = [block for block in self.blocks if block.public_key == agent]
+        agent_chain = Chain(agent_blocks)
+
+        return agent_chain.up()
+
+    def get_hop_agents(self, hops):
+        """
+        Get all agents from a specific hop distance.
+        """
+        partners = self.chain.get_partner_agents()
+        if hops == 1:
+            return partners
+
+        for i in range(1, hops):
+            new_partners = []
+
+            for partner in partners:
+                self.request_data(partner)
+                chain = self.messages[-1].payload
+                print chain
+                new_partners += chain.get_partner_agents()
+
+            if i == hops:
+                return new_partners
+            else:
+                partners += new_partners
+
+        return []
+
     def create_index(self):
         """
         Create an index from the set of blocks.
@@ -132,7 +217,6 @@ class Agent(object):
         Calculates which blocks the agents own that the opposite does not own,
         and returns those blocks from the block storage.
         """
-
         blocks = []
         for key, block_list in own_index.iteritems():
             if not key in other_index:
@@ -173,6 +257,18 @@ class Agent(object):
             if key == public_key:
                 result = score 
         return result
+
+    def contribution_accounting(self):
+        """
+        Defines a simple accounting policy which takes into account only
+        the contirbution of the known agents.
+        """
+        contributions = {}
+
+        for agent in self.get_known_agents():
+            contributions[agent] = self.get_known_contributions(agent)
+
+        return contributions
 
     def add_transaction(self, halfblock):
         """
@@ -216,5 +312,7 @@ class Agent(object):
             "chain_length": len(self.chain),
             "up": self.chain.up(),
             "down": self.chain.down(),
-            "blocks": [block.to_dict() for block in self.blocks]
+            "blocks": [block.to_dict() for block in self.blocks],
+            "hop1": [key.to_hex() for key in self.get_hop_agents(1)],
+            "hop2": [key.to_hex() for key in self.get_hop_agents(2)],
         }

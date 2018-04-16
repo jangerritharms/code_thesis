@@ -51,6 +51,15 @@ class Network(object):
             bar.next()
         bar.finish()
 
+    def set_accounting_policy(self, func):
+        """
+        Sets the accounting policy for agents to use.
+        """
+        for agent_key in self.agents:
+            agent = self.get_agent(agent_key)
+            agent.set_accounting_policy(func)
+
+
     @classmethod
     def from_database(cls, db_adapter):
         """
@@ -123,14 +132,16 @@ class Network(object):
             c = a.chain
 
 
-    def pairwise_audit(self, requester, responder):
+    def pairwise_audit(self, requester, responder=None):
         """
         Perform pairwise audit between two nodes.
         """
         assert isinstance(requester, Agent)
-        assert isinstance(responder, Agent)
 
-        requester.initiate_pairwise_auditing(responder.public_key)
+        if responder is not None:
+            requester.initiate_pairwise_auditing(responder.public_key)
+        else:
+            requester.initiate_pairwise_auditing(None)
 
     def increase_data_to_hops(self, hops):
         """
