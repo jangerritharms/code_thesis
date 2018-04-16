@@ -1,11 +1,11 @@
-from network.network import Network
-from attestation.database import MultiChainDB
+from base_experiment import BaseExperiment
 
+class Experiment(BaseExperiment):
+    """
+    Text experiment to test functions.
+    """
+    def run(self):
+        self.result = self.net.list_agents()
 
-
-def experiment():
-    db = MultiChainDB('databases/multichain_09_02_18.db')
-    net = Network.from_database(db)
-    net.clean_data()
-    # agents = net.list_agents()
-
+    def visualize(self):
+        print self.result
