@@ -3,8 +3,6 @@ Module defining messages that agents can send to each other.
 """
 
 class MessageTypes(object):
-    PA_INDEX = 1
-    PA_INDEX_REPLY = 2
     PA_BLOCKS = 3
     PA_BLOCKS_REPLY = 4
     PA_SCORE = 5

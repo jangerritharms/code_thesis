@@ -14,11 +14,11 @@ class NetworkVisualizer(object):
     of the network.
     """
 
-    def __init__(self, graph):
+    def __init__(self, interactions):
         """
         Creates the NetworkVisualizer from a given network.
         """
-        self.graph = graph
+        self.interactions = interactions
         self.title = "Network"
         self.plot = None
 
@@ -26,9 +26,10 @@ class NetworkVisualizer(object):
         """
         Creates the plot of the network.
         """
+        self.graph = self.interactions.build_graph()
         self.plot = Plot(plot_width=1200, plot_height=800,
-                    x_range=Range1d(-1.1, 1.1), y_range=Range1d(-1.1, 1.1),
-                    output_backend="svg")
+                         x_range=Range1d(-1.1, 1.1), y_range=Range1d(-1.1, 1.1),
+                         output_backend="svg")
         self.plot.title.text = self.title
 
         self.plot.add_tools(HoverTool(tooltips=None), TapTool(), BoxSelectTool(), WheelZoomTool(), PanTool(), SaveTool())

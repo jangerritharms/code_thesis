@@ -5,6 +5,7 @@ import logging
 import networkx as nx
 from attestation.database import MultiChainDB
 from attestation.public_key import PublicKey
+from interaction_set import InteractionSet
 from agent import Agent
 from attestation.halfblock import Halfblock
 from interface import NetworkInterface
@@ -23,18 +24,17 @@ class Network(object):
         Creates a new Network object.
         """
         self.agents = {}
-        self.blocks = blocks
-        self.IG = None
+        self.interactions = InteractionSet()
         self.interface = NetworkInterface(self)
 
-        self.create_agents_from_blocks()
+        self.create_agents_from_blocks(blocks)
 
-    def create_agents_from_blocks(self):
+    def create_agents_from_blocks(self, blocks):
         """
         Populate the network with agents from the database.
         """
-        bar = Bar('Creating agents', max=len(self.blocks))
-        for block in self.blocks:
+        progressbar = Bar('Creating agents', max=len(blocks))
+        for block in blocks:
             public_key1 = PublicKey(block.public_key_requester)
             public_key2 = PublicKey(block.public_key_responder)
 
@@ -48,8 +48,9 @@ class Network(object):
             block_req, block_res = Halfblock.from_old_block(block)
             agent_req.add_transaction(block_req)
             agent_res.add_transaction(block_res)
-            bar.next()
-        bar.finish()
+            self.interactions.add_blocks([block_req, block_res])
+            progressbar.next()
+        progressbar.finish()
 
     def set_accounting_policy(self, func):
         """
@@ -87,51 +88,6 @@ class Network(object):
         """
         return self.agents
 
-    def interaction_graph(self):
-        """
-        Returns an interaction graph of the complete network.
-        """
-        if self.IG is not None:
-            return self.IG
-        self.IG = nx.DiGraph()
-
-        count = {}
-
-        def update_graph(graph, pubkey1, pubkey2, contrib):
-            """
-            Adds an edge to a graph
-            """
-            try:
-                old = graph[pubkey1][pubkey2]['capacity']
-                graph.add_edge(pubkey1, pubkey2, capacity=(old+contrib))
-            except KeyError:
-                graph.add_edge(pubkey1, pubkey2, capacity=contrib)
-
-        for block in self.blocks:
-
-            pubkey_req = block.public_key_requester.encode('base64')[13:20]
-            pubkey_res = block.public_key_responder.encode('base64')[13:20]
-            up = block.up
-            down = block.down
-
-            count[pubkey_req] = count.get(pubkey_req, 0) + 1
-            count[pubkey_res] = count.get(pubkey_res, 0) + 1
-
-            update_graph(self.IG, pubkey_req, pubkey_res, up)
-            update_graph(self.IG, pubkey_res, pubkey_req, down)
-
-        return self.IG
-
-    def interaction_graph_agents(self):
-        """
-        Alternative way to calculate the graph structure.
-        """
-        self.IGA = nx.DiGraph()
-        for a in self.agents:
-            self.IGA
-            c = a.chain
-
-
     def pairwise_audit(self, requester, responder=None):
         """
         Perform pairwise audit between two nodes.
@@ -148,8 +104,8 @@ class Network(object):
         Increases the data to a certain amount of hops. Each agent
         will store at least all data from all agens `hops` hops away.
         """
-        for a in Bar('Increasing data').iter(self.agents):
-            agent = self.get_agent(a)
+        for agent_key in Bar('Increasing data').iter(self.agents):
+            agent = self.get_agent(agent_key)
             agent.obtain_data_from_hops(hops)
 
     def add_agent(self, public_key):
@@ -172,8 +128,8 @@ class Network(object):
         complete = 0
         removed_blocks = 0
         blocks_kept = 0
-        for a in Bar('Cleaning data').iter(self.agents):
-            agent = self.get_agent(a)
+        for agent_key in Bar('Cleaning data').iter(self.agents):
+            agent = self.get_agent(agent_key)
             if agent.chain.is_complete():
                 complete += 1
                 blocks_kept += len(agent.chain)

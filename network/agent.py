@@ -2,6 +2,7 @@
 This module defines the Agent class.
 """
 from ranking.temporal_page_rank import calculate_tpr
+from interaction_set import InteractionSet
 from chain import Chain
 from messages import Message, MessageTypes
 from endorsement import Endorsement
@@ -19,7 +20,7 @@ class Agent(object):
         """
         Creates a new agent with the given public_key.
         """
-        self.blocks = []
+        self.interactions = InteractionSet()
         self.chain = Chain()
         self.public_key = public_key
         self.interface = network_interface
@@ -40,26 +41,16 @@ class Agent(object):
 
         self.messages.append(message)
 
-        if message.type == MessageTypes.PA_INDEX:
-            print "replying index"
-            self.interface.send(message.sender, Message(MessageTypes.PA_INDEX_REPLY,
-                                                        self.public_key, self.create_index()))
-        if message.type == MessageTypes.PA_INDEX_REPLY:
-            print "sending blocks"
-            reply = Message(MessageTypes.PA_BLOCKS,
-                            self.public_key,
-                            self.index_difference(self.create_index(), message.payload))
-            self.interface.send(message.sender, reply)
         if message.type == MessageTypes.PA_BLOCKS:
             print "replying blocks"
             reply = Message(MessageTypes.PA_BLOCKS_REPLY,
                             self.public_key,
-                            self.index_difference(self.create_index(), self.messages[-2].payload))
-            self.blocks += message.payload
+                            self.interactions.get_blocks())
+            self.interactions.add_blocks(message.payload)
             self.interface.send(message.sender, reply)
         if message.type == MessageTypes.PA_BLOCKS_REPLY:
             print "sending score"
-            self.blocks += message.payload
+            self.interactions.add_blocks(message.payload)
             reply = Message(MessageTypes.PA_SCORE,
                             self.public_key,
                             True)
@@ -78,7 +69,7 @@ class Agent(object):
                             self.chain)
             self.interface.send(message.sender, reply)
         if message.type == MessageTypes.CHAIN_REPLY:
-            self.blocks += message.payload.get_blocks()
+            self.interactions.add_blocks(message.payload.get_blocks())
 
     def initiate_pairwise_auditing(self, public_key_responder):
         """
@@ -91,7 +82,7 @@ class Agent(object):
 
         print "Starting audit with %s" % responder.to_hex()[:10]
 
-        message = Message(MessageTypes.PA_INDEX, self.public_key, self.create_index())
+        message = Message(MessageTypes.PA_BLOCKS, self.public_key, self.interactions.get_blocks())
         self.interface.send(responder, message)
 
     def get_endorsements_by_candidate(self, agent):
@@ -158,25 +149,6 @@ class Agent(object):
 
             partners += new_partners
 
-    def get_known_agents(self):
-        """
-        Returns the list of all known public_keys.
-        """
-        partners = []
-        for block in self.blocks:
-            if not block.link_public_key in partners:
-                partners.append(block.link_public_key)
-        return partners
-
-    def get_known_contributions(self, agent):
-        """
-        Calculates the known contributions for a known agent.
-        """
-        agent_blocks = [block for block in self.blocks if block.public_key == agent]
-        agent_chain = Chain(agent_blocks)
-
-        return agent_chain.up()
-
     def get_hop_agents(self, hops):
         """
         Get all agents from a specific hop distance.
@@ -201,49 +173,11 @@ class Agent(object):
 
         return []
 
-    def create_index(self):
-        """
-        Create an index from the set of blocks.
-        """
-        index = {}
-
-        for block in self.blocks:
-            index.setdefault(block.public_key, []).append(block.sequence_number)
-
-        return index
-
-    def index_difference(self, own_index, other_index):
-        """
-        Calculates which blocks the agents own that the opposite does not own,
-        and returns those blocks from the block storage.
-        """
-        blocks = []
-        for key, block_list in own_index.iteritems():
-            if not key in other_index:
-                for block in block_list:
-                    blocks.append(self.get_block(key, block))
-                continue
-
-            for block in block_list:
-                if not block in other_index[key]:
-                    blocks.append(self.get_block(key, block))
-
-        return blocks
-
-    def get_block(self, public_key, sequence_number):
-        """
-        Get a block given by the public_key and sequence number from the block
-        storage.
-        """
-        for block in self.blocks:
-            if block.public_key == public_key and block.sequence_number == sequence_number:
-                return block
-
     def calculate_ranking(self):
         """
         Calculates a ranking of known agents.
         """
-        return calculate_tpr(self.public_key, self.blocks)
+        return calculate_tpr(self.public_key, self.interactions.get_blocks())
 
     def calculate_score(self, public_key):
         """
@@ -251,11 +185,11 @@ class Agent(object):
         to the given public key.
         """
 
-        rank = calculate_tpr(self.public_key, self.blocks)
+        rank = calculate_tpr(self.public_key, self.interactions.get_blocks())
         result = -1
         for key, score in rank.iteritems():
             if key == public_key:
-                result = score 
+                result = score
         return result
 
     def contribution_accounting(self):
@@ -265,8 +199,8 @@ class Agent(object):
         """
         contributions = {}
 
-        for agent in self.get_known_agents():
-            contributions[agent] = self.get_known_contributions(agent)
+        for agent_key in self.interactions.list_public_keys():
+            contributions[agent_key] = self.interactions.get_known_contributions(agent_key)
 
         return contributions
 
@@ -274,16 +208,16 @@ class Agent(object):
         """
         Adds a transaction to the personal database.
         """
-        self.blocks.append(halfblock)
+        self.interactions.add_block(halfblock)
 
         if halfblock.public_key == self.public_key:
             self.chain.add(halfblock)
 
-    def get_blocks(self):
+    def get_interaction_set(self):
         """
         Returns the private database of the agent.
         """
-        return self.blocks
+        return self.interactions
 
     def get_personal_chain(self):
         """
@@ -312,7 +246,7 @@ class Agent(object):
             "chain_length": len(self.chain),
             "up": self.chain.up(),
             "down": self.chain.down(),
-            "blocks": [block.to_dict() for block in self.blocks],
+            "blocks": self.interactions.to_list(),
             "hop1": [key.to_hex() for key in self.get_hop_agents(1)],
             "hop2": [key.to_hex() for key in self.get_hop_agents(2)],
         }
